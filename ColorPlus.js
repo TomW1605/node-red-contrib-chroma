@@ -21,8 +21,8 @@ class ColorPlus {
         this._color = this.chroma(this.xyz2rgb(args[0]));
         return this._color;
       case 'CIExy':
-        this.error="CIE xy can't be used as input";
-        break;
+        this._color = this.chroma(this.xy2rgb(args[0]));
+        return this._color;
     }
     this._color = null;
     return;
@@ -232,6 +232,33 @@ class ColorPlus {
     output.g = limit(this.forwardGammaSRGB(G1)*255,0,255);
     output.b = limit(this.forwardGammaSRGB(B1)*255,0,255);
     return output;
+  }
+  /**
+   * @brief Transform CIE xy to sRGB
+   *
+   *  @param   {object} input {x:1,y:1}
+   *  @return  {object} {r:255,g:255,b:255}
+   *
+   *  convert CIExy to CIExyz using the calculations for CIExyY
+   *  in CIExyY the Y is brightness so you can take Y=1 for full brightness and use the same calculations
+   *  then once you have CIExyz simply use the existing function to convert to sRGB
+   *
+   */
+  xy2rgb(input) {
+	let x = input.x
+	let y = input.y
+	let z = 0
+	let Y = 1 // assume full brigtness
+
+	// calculations from https://en.wikipedia.org/wiki/CIE_1931_color_space#CIE_xy_chromaticity_diagram_and_the_CIE_xyY_color_space
+	let X = (Y / y) * x
+	let Z = (Y / y) * (1 - x - y)
+	
+	x = X/(X+Y+Z);
+    y = Y/(X+Y+Z);
+    z = Z/(X+Y+Z);
+  
+    return this.xyz2rgb({x:x, y:y, z:z});
   }
   /**
   * @brief Transform sRGB to CIE XY with the D65 white point

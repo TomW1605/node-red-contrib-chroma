@@ -1,5 +1,33 @@
 module.exports = function(RED) {
-  function chromaNode(config) {
+    function chromaNode(config) {
+		function checkPath(obj, path)
+		{
+			if(path.includes('.'))
+			{
+				if(obj.hasOwnProperty(path.split('.')[0])) return checkPath(obj[path.split('.')[0]], path.split('.').slice(1).join('.'));
+				else return false
+			}
+			else
+			{
+				return obj.hasOwnProperty(path);
+			}
+		}
+		function getValue(obj, path)
+		{
+			if (!path) return obj;
+			const properties = path.split('.');
+			return getValue(obj[properties.shift()], properties.join('.'))
+		}
+		function setValue(obj, path, value)
+		{
+			if (path.length === 1)
+			{
+				obj[path] = value
+				return
+			}
+			return setValue(obj[path.split('.')[0]], path.split('.').slice(1), value)
+		}
+	
       var chroma = require('chroma-js');
       var chromaPlus = require('./chromaPlus');
 
@@ -36,23 +64,25 @@ module.exports = function(RED) {
 
       node.on('input', function(msg) {
         // console.log(msg);
+		this.log(checkPath(msg, config.inLocation));
         // set chroma value
         var inputColorType = "";
         var statusColor = "green";
-        if (msg.hasOwnProperty('payload')) {
-          inputColorType = colorType(msg.payload);
-          if (config.inputRelativeValues==='percent' && inputColorType!=='lab' && inputColorType!=='lch') msg.payload=scalePercent(msg.payload,0.01);
+        if (checkPath(msg, config.inLocation)) {
+		  var inputColor = getValue(msg, config.inLocation);
+          inputColorType = colorType(inputColor);
+          if (config.inputRelativeValues==='percent' && inputColorType!=='lab' && inputColorType!=='lch') inputColor=scalePercent(inputColor,0.01);
           if (callbackColor!==null) {
-            color=callbackColor(msg.payload);
-            node.status({fill:'blue', shape:'dot', text:"api("+msg.payload+")=" + color.hex() + "|" + config.outFormat});
-          } else if (isChromaPlus(msg.payload)) {
-            color = chromaPlus(msg.payload);
+            color=callbackColor(inputColor);
+            node.status({fill:'blue', shape:'dot', text:"api("+inputColor+")=" + color.hex() + "|" + config.outFormat});
+          } else if (isChromaPlus(inputColor)) {
+            color = chromaPlus(inputColor);
             if (color.hasOwnProperty('error')) return withError(color.error);
             node.status({fill:statusColor, shape:'dot', text:((inputColorType) ? inputColorType+'|' : "") + color.hex() + "|" + config.outFormat});
-          } else if (chroma.valid(msg.payload)) {
-            color = chroma(msg.payload);
+          } else if (chroma.valid(inputColor)) {
+            color = chroma(inputColor);
             node.status({fill:statusColor, shape:'dot', text:((inputColorType) ? inputColorType+'|' : "") + color.hex() + "|" + config.outFormat});
-          } else if (!msg.hasOwnProperty('api')) return withError('Input not supported! ('+msg.payload+')');
+          } else if (!msg.hasOwnProperty('api')) return withError('Input not supported! ('+inputColor+')');
         } else {
           node.status({fill:'grey', shape:'dot', text:"no payload|" + (msg.hasOwnProperty('api') ? 'api|' : '') + config.outFormat});
         }
@@ -136,7 +166,8 @@ module.exports = function(RED) {
           return (output.length===1) ? output[0] : output;
         }
 
-        msg.payload=preparePayload(color);
+        //msg.payload=preparePayload(color);
+		setValue(msg, config.inLocation, preparePayload(color));
         node.send(msg);
       });
   }
